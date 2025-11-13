@@ -1,10 +1,50 @@
+# Dependencies
 node_modules/
+
+# Build outputs
 dist/
-*.log
+build/
+*.tsbuildinfo
+
+# Environment variables
 .env
-.DS_Store
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Testing
 coverage/
+.nyc_output/
+*.lcov
+coverage-results.json
+test-results.json
+
+# IDE
+.vscode/
+.idea/
 *.swp
 *.swo
 *~
+.DS_Store
+Thumbs.db
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
 
