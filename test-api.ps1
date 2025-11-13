@@ -182,18 +182,74 @@ if ($summaryId) {
 # エラーテスト: 患者が見つからない
 Write-Host "6. エラーテスト: 存在しない患者 (P999)..." -ForegroundColor Yellow
 try {
-    $errorResponse = Invoke-RestMethod -Uri "http://localhost:3000/api/v1/patients/P999" -Method Get -Headers $headers
+    # Invoke-WebRequestを使用してエラーレスポンスのContentを取得
+    $response = Invoke-WebRequest -Uri "http://localhost:3000/api/v1/patients/P999" -Method Get -Headers $headers -ErrorAction Stop
     Write-Host "[NG] エラーが発生すべきでしたが、成功しました" -ForegroundColor Red
 } catch {
-    try {
-        $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-        $responseBody = $reader.ReadToEnd() | ConvertFrom-Json
-        Write-Host "[OK] 期待通りのエラーが発生しました" -ForegroundColor Green
-        Write-Host "  - エラーコード: $($responseBody.errorCode)"
-        Write-Host "  - メッセージ: $($responseBody.message)"
-    } catch {
-        Write-Host "[OK] エラーが発生しました（詳細の取得に失敗）" -ForegroundColor Green
-        Write-Host "  - エラー: $_"
+    $statusCode = $null
+    $errorCode = $null
+    $errorMessage = $null
+    
+    # WebExceptionの場合、Responseからエラーレスポンスを取得
+    if ($_.Exception -is [System.Net.WebException]) {
+        $webException = $_.Exception
+        if ($webException.Response) {
+            $httpResponse = $webException.Response
+            $statusCode = [int]$httpResponse.StatusCode
+            
+            try {
+                # ストリームを読み取る
+                $responseStream = $httpResponse.GetResponseStream()
+                $encoding = [System.Text.Encoding]::UTF8
+                $reader = New-Object System.IO.StreamReader($responseStream, $encoding)
+                $responseBody = $reader.ReadToEnd()
+                $reader.Close()
+                $responseStream.Close()
+                
+                # JSONをパース
+                if ($responseBody -and $responseBody.Trim().StartsWith('{')) {
+                    try {
+                        $errorObj = $responseBody | ConvertFrom-Json
+                        if ($errorObj.errorCode) {
+                            $errorCode = $errorObj.errorCode
+                        }
+                        if ($errorObj.message) {
+                            $errorMessage = $errorObj.message
+                        }
+                    } catch {
+                        $errorMessage = $responseBody
+                    }
+                } else {
+                    $errorMessage = $responseBody
+                }
+            } catch {
+                $errorMessage = "エラーレスポンスの読み取りに失敗: $_"
+            } finally {
+                if ($httpResponse) {
+                    $httpResponse.Close()
+                }
+            }
+        } else {
+            $errorMessage = $webException.Message
+        }
+    } else {
+        $errorMessage = $_.Exception.Message
+    }
+    
+    # エラー情報を表示
+    Write-Host "[OK] 期待通りのエラーが発生しました" -ForegroundColor Green
+    if ($statusCode) {
+        Write-Host "  - HTTPステータス: $statusCode"
+    }
+    if ($errorCode) {
+        Write-Host "  - エラーコード: $errorCode"
+    }
+    if ($errorMessage) {
+        Write-Host "  - メッセージ: $errorMessage"
+    }
+    if (-not $errorCode -and -not $errorMessage) {
+        Write-Host "  - エラータイプ: $($_.Exception.GetType().Name)"
+        Write-Host "  - エラーメッセージ: $($_.Exception.Message)"
     }
 }
 Write-Host ""
